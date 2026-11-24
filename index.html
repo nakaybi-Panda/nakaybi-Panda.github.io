@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111111">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="煽りパンダ">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+  <title>喋る煽りパンダ</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #111;
+      --paper: #fff;
+      --accent: #ff4444;
+      --line: 3px solid var(--ink);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #chat-container {
+      width: min(420px, 42vw);
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      border-right: 6px solid var(--ink);
+      background: var(--paper);
+      min-height: 0;
+    }
+    #chat-header {
+      flex: 0 0 auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: max(16px, var(--safe-top)) 64px 16px;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: clamp(20px, 2vw, 25px);
+      font-weight: 900;
+      text-align: center;
+      letter-spacing: .04em;
+    }
+    #settings-button {
+      position: absolute;
+      left: 8px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #fff;
+      border-radius: 9px;
+      background: #333;
+      color: #fff;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #settings-button svg { width: 23px; height: 23px; }
+    #voice-test {
+      position: absolute;
+      right: 10px;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 0 10px;
+      border: 1px solid #fff;
+      border-radius: 8px;
+      background: #333;
+      color: #fff;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #messages {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 16px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scrollbar-width: thin;
+    }
+    .msg {
+      max-width: 88%;
+      padding: 12px 14px;
+      border: var(--line);
+      border-radius: 14px;
+      font-size: 17px;
+      line-height: 1.55;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+    .msg.ai { align-self: flex-start; background: var(--paper); border-bottom-left-radius: 4px; }
+    .msg.user { align-self: flex-end; background: var(--ink); color: var(--paper); border-bottom-right-radius: 4px; }
+    .msg audio { display: block; width: 100%; max-width: 320px; margin-top: 10px; }
+    #input-area {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      padding-bottom: max(12px, var(--safe-bottom));
+      background: #f1f1f1;
+      border-top: var(--line);
+    }
+    #input-row { display: flex; align-items: center; gap: 8px; }
+    #input-wrapper { position: relative; display: flex; flex: 1 1 auto; min-width: 0; }
+    #speech-status { min-height: 14px; overflow: hidden; padding: 0 4px; color: #444; font-size: 11px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+    .tool-button { flex: 0 0 auto; min-height: 42px; padding: 0 10px; border: 2px solid var(--ink); border-radius: 9px; background: white; color: var(--ink); font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+    .tool-button[aria-pressed="true"] { background: #198754; color: white; }
+    .tool-button:disabled { opacity: .5; cursor: not-allowed; }
+    #settings-backdrop[hidden] { display: none !important; }
+    #settings-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / 55%); }
+    #settings-panel { position: relative; width: min(400px, 100%); padding: 24px 20px 20px; border: 3px solid var(--ink); border-radius: 16px; background: white; box-shadow: 0 12px 40px rgb(0 0 0 / 25%); }
+    #settings-panel h2 { margin: 0 40px 20px 0; font-size: 22px; }
+    #settings-close { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border: 2px solid var(--ink); border-radius: 9px; background: white; font-size: 24px; cursor: pointer; touch-action: manipulation; }
+    #read-aloud-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; font-weight: 800; }
+    #settings-note { margin: 14px 0 0; color: #444; font-size: 13px; line-height: 1.55; }
+    #user-input {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 48px;
+      padding: 10px 50px 10px 12px;
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      background: white;
+      color: var(--ink);
+      font: inherit;
+      font-size: 16px;
+      outline-offset: 2px;
+    }
+    #speech-input {
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      transform: translateY(-50%);
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #speech-input svg { width: 23px; height: 23px; }
+    #speech-input[aria-pressed="true"] { background: #ff4444; color: white; }
+    #speech-input:disabled { opacity: .4; cursor: not-allowed; }
+    #send-button {
+      flex: 0 0 auto;
+      min-width: 72px;
+      min-height: 52px;
+      padding: 0 17px;
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #send-button:active { transform: translateY(1px); }
+    #game-field {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      background-color: #fff;
+      background-image: radial-gradient(#e5e5e5 1px, transparent 1px);
+      background-size: 22px 22px;
+      touch-action: manipulation;
+    }
+    .panda {
+      position: absolute;
+      width: 180px;
+      height: 165px;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transform-origin: top left;
+      transform: translate3d(var(--panda-x, 30px), var(--panda-y, 25px), 0) scale(var(--panda-scale, 1));
+      will-change: transform;
+    }
+    .ear { position: absolute; z-index: 0; background: black; }
+    .ear.l { width: 55px; height: 34px; top: 5px; left: 4px; border-radius: 30% 70%; transform: rotate(-35deg); }
+    .ear.r { width: 27px; height: 72px; top: -3px; right: 18px; border-radius: 10% 90%; transform: rotate(20deg); }
+    .face {
+      width: 140px; height: 120px; margin: 24px 0 0 12px;
+      background: white; border: 6px solid black; border-radius: 45%; position: relative;
+    }
+    .eye { position: absolute; width: 38px; height: 12px; background: black; top: 34px; border-radius: 6px; }
+    .eye.l { left: 14px; } .eye.r { right: 14px; }
+    .mouth { position: absolute; top: 68px; left: 50%; transform: translateX(-50%); width: 38px; height: 28px; background: black; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+    .finger { position: absolute; z-index: 1; top: 42px; right: -2px; font-size: 64px; line-height: 1; animation: waggle .4s infinite alternate; }
+    @keyframes waggle { from { transform: rotate(0deg); } to { transform: rotate(15deg); } }
+
+    @media (max-width: 700px) {
+      body { flex-direction: column; }
+      #game-field {
+        order: 0;
+        flex: 0 0 40%;
+        min-height: 0;
+        width: 100%;
+        border-bottom: 4px solid var(--ink);
+      }
+      #chat-container {
+        order: 1;
+        width: 100%; min-width: 0; flex: 1 1 60%;
+        border-right: 0; min-height: 0;
+      }
+      #chat-header { padding: 10px 66px; font-size: 20px; }
+      #messages { padding: 12px; gap: 10px; }
+      .msg { font-size: 16px; padding: 10px 12px; }
+    }
+    @media (max-height: 520px) and (max-width: 700px) {
+      #game-field { flex-basis: 40%; }
+      .panda { --panda-scale: .72; }
+      #chat-header { padding-top: 6px; padding-bottom: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <section id="chat-container" aria-label="パンダとのチャット">
+    <header id="chat-header">
+      <button id="settings-button" type="button" aria-label="設定" aria-expanded="false" aria-controls="settings-backdrop">
+        <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.07 7.07 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.49-.42h-3.84a.5.5 0 0 0-.49.42L9.18 5.32c-.59.23-1.14.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.22L2.63 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.05.31-.08.63-.08.94s.03.63.08.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96c.49.39 1.04.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.42h3.84a.5.5 0 0 0 .49-.42l.36-2.54c.59-.23 1.14-.55 1.63-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"></path></svg>
+      </button>
+      <span id="chat-title">喋る煽りパンダ</span>
+      <button id="voice-test" type="button">録音の声</button>
+    </header>
+    <div id="messages" role="log" aria-live="polite" aria-relevant="additions">
+      <div class="msg ai">よぉ。声が出せるようになったぞ。耳の穴かっぽじって聴けよｗ 🖕</div>
+    </div>
+    <form id="input-area">
+      <div id="input-row">
+        <div id="input-wrapper">
+          <input type="text" id="user-input" placeholder="なんか言ってみろよ..." autocomplete="off" enterkeyhint="send" aria-label="メッセージ">
+          <button id="speech-input" type="button" aria-label="音声入力" title="読み上げON時に音声入力" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"></path></svg>
+          </button>
+        </div>
+        <button id="send-button" type="submit">送信</button>
+      </div>
+      <span id="speech-status" aria-live="polite">読み上げOFF</span>
+    </form>
+  </section>
+
+  <div id="settings-backdrop" hidden>
+    <section id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <button id="settings-close" type="button" aria-label="設定を閉じる">×</button>
+      <h2 id="settings-title">設定</h2>
+      <div id="read-aloud-setting">
+        <span>入力文の読み上げ</span>
+        <button id="read-aloud-toggle" class="tool-button" type="button" aria-pressed="false">読み上げOFF</button>
+      </div>
+      <p id="settings-note">ONにして文章を送信すると、端末の日本語システム音声を高め・少し速めに調整して読み上げます。端末の声質は変えられないため、元録音と完全に同じ声ではありません。「終了」と送信するか、音声入力で「終了」と話すとOFFになります。</p>
+    </section>
+  </div>
+
+  <main id="game-field" aria-label="パンダのゲームエリア">
+    <div id="panda" class="panda" role="button" tabindex="0" aria-label="パンダをタップ">
+      <div class="finger" aria-hidden="true">🖕</div>
+      <div class="ear l"></div><div class="ear r"></div>
+      <div id="face-box" class="face" aria-hidden="true">
+        <div id="e-l" class="eye l"></div><div id="e-r" class="eye r"></div>
+        <div id="mo" class="mouth"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const panda = document.getElementById('panda');
+    const field = document.getElementById('game-field');
+    const messages = document.getElementById('messages');
+    const input = document.getElementById('user-input');
+    const form = document.getElementById('input-area');
+    const voiceTest = document.getElementById('voice-test');
+    const settingsButton = document.getElementById('settings-button');
+    const settingsBackdrop = document.getElementById('settings-backdrop');
+    const settingsClose = document.getElementById('settings-close');
+    const readAloudToggle = document.getElementById('read-aloud-toggle');
+    const speechInputButton = document.getElementById('speech-input');
+    const speechStatus = document.getElementById('speech-status');
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let readAloudMode = false;
+    let recognition = null;
+    let isListening = false;
+    let x = 30, y = 25, vx = 2.7, vy = 2.3;
+    let lastFrame = 0, maxX = 0, maxY = 0;
+    const audioSources = {
+      'panda-01.wav': './audio/panda-01.mp3',
+      'panda-02.wav': './audio/panda-02.mp3',
+      'panda-03.wav': './audio/panda-03.mp3'
+    };
+    const audioPreloads = Object.values(audioSources).map((source) => {
+      const clip = new Audio(source);
+      clip.preload = 'auto';
+      clip.load();
+      return clip;
+    });
+    const playingClips = new Set();
+    const inmuKingAudioSource = './audio/inmu-king.mp3';
+    let currentTrackPlayer = null;
+    function speakAudio(filename) {
+      const source = audioSources[filename];
+      if (!source) return;
+      // iPhone Safariではリダイレクト音源や複製したAudio要素が不安定な場合があるため、
+      // 同一サイトのMP3からタップごとに新しい再生要素を作る。
+      const clip = new Audio(source);
+      clip.preload = 'auto';
+      clip.volume = 1;
+      clip.muted = false;
+      clip.setAttribute('playsinline', '');
+      clip.setAttribute('aria-hidden', 'true');
+      clip.style.cssText = 'position:fixed;width:1px;height:1px;left:0;bottom:0;opacity:0;pointer-events:none';
+      document.body.appendChild(clip);
+      playingClips.add(clip);
+      const cleanup = () => {
+        playingClips.delete(clip);
+        if (clip.parentNode) clip.parentNode.removeChild(clip);
+      };
+      clip.addEventListener('ended', cleanup, { once: true });
+      clip.addEventListener('error', cleanup, { once: true });
+      // 極端な連打で再生要素が増え続けないよう、古い再生だけを制限する
+      if (playingClips.size > 8) {
+        const oldest = playingClips.values().next().value;
+        oldest.pause();
+        playingClips.delete(oldest);
+        if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
+      }
+      const playback = clip.play();
+      if (playback && typeof playback.catch === 'function') {
+        playback.catch((error) => { cleanup(); console.warn('録音音声の再生に失敗しました:', error.name, error.message); });
+      }
+    }
+    voiceTest.addEventListener('click', () => speakAudio('panda-01.wav'));
+    function closeSettings() {
+      settingsBackdrop.hidden = true;
+      settingsButton.setAttribute('aria-expanded', 'false');
+      settingsButton.focus();
+    }
+    settingsButton.addEventListener('click', () => {
+      settingsBackdrop.hidden = false;
+      settingsButton.setAttribute('aria-expanded', 'true');
+      settingsClose.focus();
+    });
+    settingsClose.addEventListener('click', closeSettings);
+    settingsBackdrop.addEventListener('click', (event) => {
+      if (event.target === settingsBackdrop) closeSettings();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !settingsBackdrop.hidden) closeSettings();
+    });
+
+    function updateBounds() {
+      // Layout dimensions are measured only when the field changes, never in the animation loop.
+      maxX = Math.max(0, field.clientWidth - panda.offsetWidth);
+      maxY = Math.max(0, field.clientHeight - panda.offsetHeight);
+      x = Math.min(x, maxX);
+      y = Math.min(y, maxY);
+      panda.style.setProperty('--panda-x', `${x}px`);
+      panda.style.setProperty('--panda-y', `${y}px`);
+    }
+    if ('ResizeObserver' in window) new ResizeObserver(updateBounds).observe(field);
+    else window.addEventListener('resize', updateBounds, { passive: true });
+
+    function advanceAxis(position, velocity, limit, step) {
+      if (limit <= 0) return { position: 0, velocity };
+      const period = limit * 2;
+      const raw = position + velocity * step;
+      const phase = ((raw % period) + period) % period;
+      const direction = Math.sign(velocity) || 1;
+      const speed = Math.abs(velocity);
+      if (phase === 0) return { position: 0, velocity: speed };
+      if (phase < limit) return { position: phase, velocity: direction * speed };
+      if (phase === limit) return { position: limit, velocity: -direction * speed };
+      return { position: period - phase, velocity: -direction * speed };
+    }
+
+    function move(timestamp) {
+      if (!document.hidden) {
+        const elapsed = lastFrame ? Math.min(timestamp - lastFrame, 34) : 16.67;
+        const step = elapsed / 16.67;
+        const nextX = advanceAxis(x, vx, maxX, step);
+        const nextY = advanceAxis(y, vy, maxY, step);
+        x = nextX.position; vx = nextX.velocity;
+        y = nextY.position; vy = nextY.velocity;
+        panda.style.setProperty('--panda-x', `${x}px`);
+        panda.style.setProperty('--panda-y', `${y}px`);
+      }
+      lastFrame = timestamp;
+      requestAnimationFrame(move);
+    }
+
+    // 録画に入っていた音声だけを使い、声質が返答ごとに変わらないようにする
+    const replies = [
+      { text: '暴力反対！通報するぞ！', audio: 'panda-01.wav' },
+      { text: '痛ぇな！画面割る気かよ！', audio: 'panda-02.wav' },
+      { text: 'いてっ！指折れるだろ！', audio: 'panda-03.wav' }
+    ];
+
+    function addMsg(text, type) {
+      const div = document.createElement('div');
+      div.className = `msg ${type}`;
+      // ユーザー入力をHTMLとして解釈しない
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function isInmuPlayCommand(text) {
+      const normalized = String(text).normalize('NFKC').toLowerCase()
+        .replace(/[\s、，。,.!?！？・\-‐‑–—_]/g, '');
+      const hasTrackTitle = /(?:インム|淫夢)キング/.test(normalized) || normalized.includes('inmuking');
+      const hasPlayIntent = /(?:流して|ながして|かけて|再生して|鳴らして)/.test(normalized);
+      return hasTrackTitle && hasPlayIntent;
+    }
+
+    function playInmuKing() {
+      if (currentTrackPlayer) {
+        currentTrackPlayer.pause();
+        currentTrackPlayer.currentTime = 0;
+      }
+      const bubble = document.createElement('div');
+      bubble.className = 'msg ai';
+      const caption = document.createElement('span');
+      caption.textContent = 'INMU KINGを流してやるよ。';
+      const player = document.createElement('audio');
+      player.controls = true;
+      player.preload = 'auto';
+      player.setAttribute('playsinline', '');
+      player.setAttribute('aria-label', 'INMU KINGのプレーヤー');
+      player.src = inmuKingAudioSource;
+      player.addEventListener('error', () => {
+        caption.textContent = '音源を読み込めませんでした。ネット接続を確認してください。';
+      }, { once: true });
+      bubble.append(caption, player);
+      messages.appendChild(bubble);
+      messages.scrollTop = messages.scrollHeight;
+      currentTrackPlayer = player;
+      const playback = player.play();
+      if (playback && typeof playback.catch === 'function') {
+        playback.catch((error) => {
+          caption.textContent = '自動再生できないときは、プレーヤーの再生ボタンを押してください。';
+          console.warn('指定曲の自動再生に失敗しました:', error.name, error.message);
+        });
+      }
+    }
+
+    function setSpeechStatus(text) {
+      speechStatus.textContent = text;
+    }
+
+    function isEndCommand(text) {
+      return text.replace(/[\s、。,.!?！？]/g, '').includes('終了');
+    }
+
+    function stopSpeechInput() {
+      if (recognition && isListening) {
+        isListening = false;
+        speechInputButton.setAttribute('aria-pressed', 'false');
+        speechInputButton.setAttribute('aria-label', '音声入力');
+        speechInputButton.title = '音声入力';
+        try { recognition.stop(); } catch (error) { console.warn('音声入力を停止できませんでした:', error); }
+      }
+    }
+
+    function setReadAloudMode(enabled, statusText) {
+      readAloudMode = enabled;
+      readAloudToggle.setAttribute('aria-pressed', String(enabled));
+      readAloudToggle.textContent = enabled ? '読み上げON' : '読み上げOFF';
+      if (!enabled) {
+        stopSpeechInput();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      }
+      setSpeechStatus(statusText || (enabled ? '送信した文を読み上げます' : '読み上げOFF'));
+    }
+
+    function speakText(text) {
+      if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+        setSpeechStatus('このブラウザーは読み上げに対応していません');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      // 月額不要の端末音声で、高く軽快なパンダの雰囲気へ近づける。
+      utterance.rate = 1.12;
+      utterance.pitch = 1.4;
+      utterance.volume = 1;
+      const japaneseVoice = window.speechSynthesis.getVoices().find((voice) => /^ja([_-]|$)/i.test(voice.lang));
+      if (japaneseVoice) utterance.voice = japaneseVoice;
+      utterance.onstart = () => { if (readAloudMode) setSpeechStatus('読み上げ中…'); };
+      utterance.onend = () => { if (readAloudMode) setSpeechStatus('読み上げ完了'); };
+      utterance.onerror = () => { if (readAloudMode) setSpeechStatus('読み上げできませんでした'); };
+      window.speechSynthesis.speak(utterance);
+    }
+
+    readAloudToggle.addEventListener('click', () => {
+      if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+        setSpeechStatus('このブラウザーは読み上げに対応していません');
+        return;
+      }
+      setReadAloudMode(!readAloudMode);
+    });
+
+    if (!SpeechRecognitionAPI) {
+      speechInputButton.disabled = true;
+      speechInputButton.title = 'このブラウザーは音声入力に対応していません。文字入力は利用できます。';
+      setSpeechStatus('文字入力で「終了」と送信すると終了します');
+    } else {
+      recognition = new SpeechRecognitionAPI();
+      recognition.lang = 'ja-JP';
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.onstart = () => {
+        isListening = true;
+        speechInputButton.setAttribute('aria-pressed', 'true');
+        speechInputButton.setAttribute('aria-label', '聞き取りを停止');
+        speechInputButton.title = '聞き取り中。停止するにはタップ';
+        setSpeechStatus('音声を聞いています。「終了」で解除');
+      };
+      recognition.onresult = (event) => {
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          if (!event.results[index].isFinal) continue;
+          const transcript = event.results[index][0].transcript.trim();
+          if (!transcript) continue;
+          if (readAloudMode && isEndCommand(transcript)) {
+            addMsg('「終了」を認識しました。読み上げモードを終了します。', 'ai');
+            setReadAloudMode(false, '読み上げモードを終了しました');
+            return;
+          }
+          if (isEndCommand(transcript)) {
+            stopSpeechInput();
+            setSpeechStatus('音声入力を終了しました');
+            return;
+          }
+          if (isInmuPlayCommand(transcript)) {
+            input.value = transcript;
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            stopSpeechInput();
+            setSpeechStatus('INMU KINGを再生します');
+            return;
+          }
+          input.value = transcript;
+          setSpeechStatus(readAloudMode ? '音声を入力しました。送信すると読み上げます' : '音声を入力しました。送信して会話できます');
+        }
+      };
+      recognition.onerror = (event) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setSpeechStatus('マイクを許可してください。文字入力も使えます');
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          setSpeechStatus('音声入力に失敗しました。文字入力も使えます');
+        }
+      };
+      recognition.onend = () => {
+        isListening = false;
+        speechInputButton.setAttribute('aria-pressed', 'false');
+        speechInputButton.setAttribute('aria-label', '音声入力');
+        speechInputButton.title = '音声入力';
+        if (readAloudMode && speechStatus.textContent === '音声を聞いています。「終了」で解除') {
+          setSpeechStatus('音声入力が停止しました。再度タップできます');
+        }
+      };
+    }
+
+    speechInputButton.addEventListener('click', () => {
+      if (!recognition) return;
+      if (isListening) {
+        stopSpeechInput();
+        setSpeechStatus('音声入力を停止しました');
+        return;
+      }
+      try {
+        recognition.start();
+      } catch (error) {
+        setSpeechStatus('音声入力を開始できません。少し待って再試行してください');
+        console.warn('音声入力を開始できませんでした:', error);
+      }
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const val = input.value.trim();
+      if (!val) return;
+      if (readAloudMode && isEndCommand(val)) {
+        input.value = '';
+        addMsg('読み上げモードを終了しました。', 'ai');
+        setReadAloudMode(false);
+        return;
+      }
+      addMsg(val, 'user');
+      input.value = '';
+      if (isInmuPlayCommand(val)) {
+        playInmuKing();
+        return;
+      }
+      const reply = replies[Math.floor(Math.random() * replies.length)];
+      addMsg(reply.text + ' 🖕', 'ai');
+      if (readAloudMode) {
+        // 入力文を優先し、定型録音と重ならないよう送信時の録音再生は省く。
+        speakText(val);
+      } else {
+        // 通常時は従来どおり元録音のパンダ音声を再生する。
+        speakAudio(reply.audio);
+      }
+    });
+
+    function tapPanda() {
+      const reply = replies[Math.floor(Math.random() * replies.length)];
+      addMsg(reply.text + ' 🖕', 'ai');
+      speakAudio(reply.audio);
+      // 上限を設けず、押すたびに毎フレームの移動量を1pxずつ増やす
+      const accelerate = (velocity) => -Math.sign(velocity || 1) * (Math.abs(velocity) + 1);
+      vx = accelerate(vx);
+      vy = accelerate(vy);
+    }
+    const handlePandaPress = (event) => {
+      if (event.isPrimary === false) return;
+      event.preventDefault();
+      tapPanda();
+    };
+    if ('PointerEvent' in window) {
+      panda.addEventListener('pointerdown', handlePandaPress, { passive: false });
+    } else if ('ontouchstart' in window) {
+      panda.addEventListener('touchstart', handlePandaPress, { passive: false });
+    } else {
+      panda.addEventListener('mousedown', handlePandaPress);
+    }
+    panda.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); tapPanda(); }
+    });
+    updateBounds();
+    requestAnimationFrame(move);
+
+    // HTTPS（またはlocalhost）で配信される場合にオフラインキャッシュを有効化
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch((error) => {
+          console.error('Service Worker registration failed:', error);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
